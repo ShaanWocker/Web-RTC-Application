@@ -17,6 +17,7 @@ export const RoomProvider: React.FunctionComponent<PropsWithChildren> = ({childr
     const [me, setMe] = useState<Peer>();
     const [stream, setStream] = useState<MediaStream>();
     const [peers, dispatch] = useReducer(peersReducer, {});
+    const [screenSharingId, setScreenSharingId] = useState<string>("")
 
     const enterRoom = ({roomId}: {roomId:"string"}) => {
         navigate(`/room/${roomId}`);
@@ -27,6 +28,22 @@ export const RoomProvider: React.FunctionComponent<PropsWithChildren> = ({childr
 
     const removePeer = (peerId: string) => {
         dispatch(removePeerAction(peerId));
+    }
+
+    const switchStream = (stream: MediaStream) => {
+        setStream(stream)
+        setScreenSharingId(me?.id || "")
+
+    }
+
+    const shareScreen = () => {
+        if(screenSharingId){
+            navigator.mediaDevices.getUserMedia({video:true, audio:true})
+            .then(switchStream)
+        }else{
+            navigator.mediaDevices.getDisplayMedia({}).then(switchStream)
+        }
+        
     }
 
     useEffect(() => {
@@ -73,7 +90,7 @@ export const RoomProvider: React.FunctionComponent<PropsWithChildren> = ({childr
     console.log({peers});
 
     return (
-        <RoomContext.Provider value={{ws, me, stream, peers}}>
+        <RoomContext.Provider value={{ws, me, stream, peers, shareScreen}}>
             {children}
         </RoomContext.Provider>
     );
