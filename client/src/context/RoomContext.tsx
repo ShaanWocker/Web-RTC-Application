@@ -18,6 +18,7 @@ export const RoomProvider: React.FunctionComponent<PropsWithChildren> = ({childr
     const [stream, setStream] = useState<MediaStream>();
     const [peers, dispatch] = useReducer(peersReducer, {});
     const [screenSharingId, setScreenSharingId] = useState<string>("")
+    const [roomId, setRoomId] = useState<string>()
 
     const enterRoom = ({roomId}: {roomId:"string"}) => {
         navigate(`/room/${roomId}`);
@@ -32,8 +33,20 @@ export const RoomProvider: React.FunctionComponent<PropsWithChildren> = ({childr
 
     const switchStream = (stream: MediaStream) => {
         setStream(stream)
-        setScreenSharingId(me?.id || "")
+        setScreenSharingId(me?.id || "");
 
+        if (me) {
+            Object.values(me?.connections).forEach((connection:any) => {
+                const videoTrack = stream
+                ?.getTracks()
+                .find(track => track.kind === 'video');
+                console.log(connection[0].peerConnection.getSenders()[1]);
+                connection[0].peerConnection
+                .getSenders()[1]
+                .replaceTrack(videoTrack)
+                .catch((err:any) => console.log(err));
+            });
+        }
     }
 
     const shareScreen = () => {
@@ -64,9 +77,28 @@ export const RoomProvider: React.FunctionComponent<PropsWithChildren> = ({childr
 
         ws.on("room-created", enterRoom);
         ws.on("get-users", getUsers);
-        ws.on("user-disconnected", removePeer)
+        ws.on("user-disconnected", removePeer);
+        ws.on("user-started-sharing", (peerId) => setScreenSharingId(peerId));
+        ws.on("user-stopped-sharing", () => setScreenSharingId(""));
 
+        return () => {
+            ws.off("room-created");
+            ws.off("get-users");
+            ws.off("user-disconnected");
+            ws.off("user-started-sharing");
+            ws.off("user-stopped-sharing");
+            ws.off("user-joined");
+        }
     }, []);
+
+    useEffect(() => {
+        if (screenSharingId) {
+            ws.emit("user-started-sharing", {peerId:screenSharingId, roomId}) 
+        } else {
+            ws.emit("user-stopped-sharing");
+
+        }
+    }, [screenSharingId, roomId])
 
     useEffect(() => {
         if(!me) return;
@@ -90,7 +122,7 @@ export const RoomProvider: React.FunctionComponent<PropsWithChildren> = ({childr
     console.log({peers});
 
     return (
-        <RoomContext.Provider value={{ws, me, stream, peers, shareScreen}}>
+        <RoomContext.Provider value={{ws, me, stream, peers, shareScreen,setRoomId, screenSharingId}}>
             {children}
         </RoomContext.Provider>
     );
